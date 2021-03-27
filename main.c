@@ -86,6 +86,9 @@ static int usage()
 
 int main(int argc, char *argv[])
 {
+	#ifdef __CYGWIN__
+	rpmalloc_initialize();
+	#endif
 	extern char *bwa_pg;
 	int i, ret;
 	double t_real;
@@ -126,5 +129,8 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "\n[%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__, realtime() - t_real, cputime());
 	}
 	free(bwa_pg);
+	#ifdef __CYGWIN__
+	rpmalloc_finalize();
+	#endif
 	return ret;
 }
