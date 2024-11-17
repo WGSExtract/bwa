@@ -2,6 +2,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <limits.h>
+#ifdef __CYGWIN__
+#include "rpmalloc.h"
+#endif
 
 /************
  * kt_for() *
@@ -34,16 +37,22 @@ static inline long steal_work(kt_for_t *t)
 
 static void *ktf_worker(void *data)
 {
-	ktf_worker_t *w = (ktf_worker_t*)data;
-	long i;
-	for (;;) {
-		i = __sync_fetch_and_add(&w->i, w->t->n_threads);
-		if (i >= w->t->n) break;
-		w->t->func(w->t->data, i, w - w->t->w);
-	}
-	while ((i = steal_work(w->t)) >= 0)
-		w->t->func(w->t->data, i, w - w->t->w);
-	pthread_exit(0);
+    #ifdef __CYGWIN__
+    rpmalloc_thread_initialize();
+    #endif
+    ktf_worker_t *w = (ktf_worker_t*)data;
+    long i;
+    for (;;) {
+        i = __sync_fetch_and_add(&w->i, w->t->n_threads);
+        if (i >= w->t->n) break;
+        w->t->func(w->t->data, i, w - w->t->w);
+    }
+    while ((i = steal_work(w->t)) >= 0)
+        w->t->func(w->t->data, i, w - w->t->w);
+    #ifdef __CYGWIN__
+    rpmalloc_thread_finalize(1);  // Pass 1 to release caches
+    #endif
+    pthread_exit(0);
 }
 
 void kt_for(int n_threads, void (*func)(void*,long,int), void *data, long n)
@@ -85,6 +94,9 @@ typedef struct ktp_t {
 
 static void *ktp_worker(void *data)
 {
+	#ifdef __CYGWIN__
+	rpmalloc_thread_initialize();
+	#endif
 	ktp_worker_t *w = (ktp_worker_t*)data;
 	ktp_t *p = w->pl;
 	while (w->step < p->n_steps) {
@@ -113,6 +125,9 @@ static void *ktp_worker(void *data)
 		pthread_cond_broadcast(&p->cv);
 		pthread_mutex_unlock(&p->mutex);
 	}
+	#ifdef __CYGWIN__
+	rpmalloc_thread_finalize(1);
+	#endif
 	pthread_exit(0);
 }
 
